@@ -88,7 +88,6 @@ func (r *Rename) run() error {
 	if err != nil {
 		return err
 	}
-	sort.Sort(fileInfoList(r.fileList))
 
 	return r.copy()
 }
@@ -111,6 +110,15 @@ func (r *Rename) copy() error {
 		if err != nil {
 			return err
 		}
+	}
+
+	sort.Sort(fileInfoList(r.fileList))
+
+	var method func(source, dest string) error
+	if r.config.KeepOriginals {
+		method = copyFile
+	} else {
+		method = moveFile
 	}
 
 	countFormat := fmt.Sprintf("%s0%dd", "%", r.config.Digits)
@@ -143,11 +151,7 @@ func (r *Rename) copy() error {
 			dest = buf.String()
 		}
 
-		if r.config.KeepOriginals {
-			copyFile(f.path, dest)
-		} else {
-			moveFile(f.path, dest)
-		}
+		method(f.path, dest)
 
 		r.directories[dir]++
 		filesCount[fileName]++
@@ -219,6 +223,7 @@ func formatPath(parent, child string) string {
 	if len(child) == 0 {
 		return parent
 	}
+	// return filepath.Join(parent, child)
 	return fmt.Sprintf("%s%s%s", parent, string(os.PathSeparator), child)
 }
 
@@ -282,4 +287,12 @@ func (fl fileInfoList) Less(i, j int) bool {
 
 func (fl fileInfoList) Swap(i, j int) {
 	fl[i], fl[j] = fl[j], fl[i]
+}
+
+func getFileTime(file *os.File) (time.Time, error) {
+	fs, err := file.Stat()
+	if err != nil {
+		return time.Time{}, err
+	}
+	return fs.ModTime(), nil
 }
